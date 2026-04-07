@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Function Memory Graph v3 — app.function</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; overflow: hidden; }
+
+#header {
+  position: fixed; top: 0; left: 0; right: 0; height: 50px;
+  background: #16213e; border-bottom: 1px solid #0f3460;
+  display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 100;
+}
+#header h1 { font-size: 14px; font-weight: 600; color: #e0e0e0; white-space: nowrap; }
+.badge { background: #0f3460; border: 1px solid #253f6e; border-radius: 4px; padding: 3px 10px; font-size: 12px; color: #90b8e0; white-space: nowrap; }
+.badge span { color: #fff; font-weight: 700; }
+
+#svg-container { position: fixed; top: 50px; left: 0; right: 0; bottom: 0; }
+svg { width: 100%; height: 100%; }
+
+#controls {
+  position: fixed; top: 62px; right: 12px; z-index: 50;
+  background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+  padding: 12px 14px; width: 220px; font-size: 12px;
+}
+#controls h3 { font-size: 11px; font-weight: 600; color: #90b8e0; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; color: #a0a0b8; }
+.ctrl-row .v { color: #fff; font-weight: 600; }
+input[type=range] { width: 100%; accent-color: #4e79a7; margin: 2px 0 8px; cursor: pointer; }
+.divider { border: none; border-top: 1px solid #1a2a4a; margin: 8px 0; }
+label.check-label { display: flex; align-items: center; gap: 6px; color: #a0a0b8; cursor: pointer; margin: 4px 0; }
+input[type=checkbox] { accent-color: #4e79a7; cursor: pointer; }
+
+#legend {
+  position: fixed; bottom: 14px; right: 12px; z-index: 50;
+  background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+  padding: 10px 14px; font-size: 11px;
+}
+#legend h3 { font-size: 11px; font-weight: 600; color: #90b8e0; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 1px; }
+.leg { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #b0b0c8; }
+.leg-c { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+/* Info panel */
+#info {
+  position: fixed; top: 62px; left: 12px; z-index: 50;
+  background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+  padding: 12px 14px; width: 380px; font-size: 12px;
+  display: none; max-height: calc(100vh - 80px); overflow-y: auto;
+}
+#info h3 { font-size: 11px; font-weight: 600; color: #90b8e0; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.ilabel { color: #707088; font-size: 10px; margin-top: 10px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+.ivalue { color: #dde; word-break: break-word; line-height: 1.5; }
+.fn-chip { border-radius: 3px; padding: 2px 8px; font-size: 11px; font-weight: 700; display: inline-block; }
+.trow { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #1a2a4a; font-size: 11px; }
+.tname { color: #c0c0d8; word-break: break-word; flex: 1; }
+.tcnt { color: #f8b500; font-weight: 700; white-space: nowrap; }
+#info-close { float: right; cursor: pointer; color: #606080; font-size: 18px; line-height: 1; margin-top: -3px; }
+#info-close:hover { color: #e0e0e0; }
+
+.thinking-block { background: #0d1a30; border: 1px solid #1a2a4a; border-radius: 5px; margin-top: 6px; overflow: hidden; }
+.thinking-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; cursor: pointer; color: #90b8e0; font-size: 11px; font-weight: 600; user-select: none; }
+.thinking-header:hover { background: #1a2a4a; }
+.thinking-toggle { color: #505068; transition: transform 0.15s; }
+.thinking-body { padding: 8px 10px; font-size: 10px; color: #b0b8c8; line-height: 1.6; white-space: pre-wrap; word-break: break-word; display: none; max-height: 220px; overflow-y: auto; border-top: 1px solid #1a2a4a; }
+.thinking-body.open { display: block; }
+
+.task-row { padding: 4px 0; border-bottom: 1px solid #1a2a4a; font-size: 11px; }
+.task-id { color: #f8b500; font-weight: 700; font-size: 10px; }
+.task-path { color: #707090; font-size: 10px; margin-top: 2px; word-break: break-all; line-height: 1.5; }
+.task-path .highlight { color: #fff; font-weight: 700; }
+
+.tooltip { position: fixed; background: rgba(12,30,60,0.97); border: 1px solid #4e79a7; border-radius: 6px; padding: 8px 12px; font-size: 11px; pointer-events: none; z-index: 300; max-width: 260px; display: none; }
+.tt-title { font-weight: 600; color: #90b8e0; margin-bottom: 4px; }
+.tt-row { color: #b0b0c8; margin: 2px 0; }
+.tt-row b { color: #fff; }
+
+.node { cursor: pointer; }
+.node circle { stroke-width: 2; transition: stroke 0.12s, r 0.12s; }
+.node text { pointer-events: none; user-select: none; }
+.node.selected circle { stroke: #fff !important; stroke-width: 3 !important; filter: drop-shadow(0 0 8px rgba(255,255,255,0.5)); }
+.node.dimmed { opacity: 0.12; }
+.link { fill: none; }
+.link.dimmed { opacity: 0.05; }
+.link.hilite { opacity: 1 !important; stroke-opacity: 1 !important; }
+.link-label { font-size: 10px; fill: #606080; pointer-events: none; }
+
+#hint { position: fixed; bottom: 14px; left: 14px; font-size: 11px; color: #505068; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Function Memory Graph <span style="color:#f8b500">v3</span> — individual app.function nodes</h1>
+  <div class="badge">Perfect: <span id="s-p">–</span> / <span id="s-t">–</span></div>
+  <div class="badge">Success: <span id="s-r">–</span></div>
+  <div class="badge">Nodes: <span id="s-n">–</span></div>
+  <div class="badge">Edges: <span id="s-e">–</span></div>
+</div>
+
+<div id="svg-container"><svg id="svg"></svg></div>
+
+<div id="controls">
+  <h3>Controls</h3>
+  <div class="ctrl-row"><span>Min Edge Count</span><span class="v" id="v-min">1</span></div>
+  <input type="range" id="r-min" min="1" max="20" value="1">
+  <div class="ctrl-row"><span>Link Distance</span><span class="v" id="v-dist">140</span></div>
+  <input type="range" id="r-dist" min="50" max="400" value="140">
+  <div class="ctrl-row"><span>Repulsion</span><span class="v" id="v-chg">-400</span></div>
+  <input type="range" id="r-chg" min="-1200" max="-80" value="-400">
+  <hr class="divider">
+  <label class="check-label"><input type="checkbox" id="ck-labels" checked> Show edge counts</label>
+</div>
+
+<div id="legend">
+  <h3>App</h3>
+  <div id="legend-items"></div>
+  <hr class="divider" style="border-color:#1a2a4a;margin:6px 0">
+  <div class="leg" style="font-size:10px;color:#707088">Size = frequency</div>
+  <div class="leg" style="font-size:10px;color:#707088">Width = transition count</div>
+</div>
+
+<div id="info">
+  <span id="info-close">×</span>
+  <h3>Node Details</h3>
+  <div class="ilabel">Function</div>
+  <div id="i-name"></div>
+  <div class="ilabel">Frequency</div>
+  <div class="ivalue" id="i-freq"></div>
+  <div class="ilabel">Outgoing Transitions</div>
+  <div id="i-trans"></div>
+  <div class="ilabel">Thinking Examples</div>
+  <div id="i-thinking"></div>
+  <div class="ilabel">Tasks containing this node</div>
+  <div id="i-tasks"></div>
+</div>
+
+<div class="tooltip" id="tip"></div>
+<div id="hint">Click node for details · Scroll to zoom · Drag to pan</div>
+
+<script>
+const PATH = 'function_memory_graph_perfect_v3.json';
+
+const APP_COLORS = {
+  supervisor:  '#4e79a7',
+  venmo:       '#f28e2b',
+  spotify:     '#59a14f',
+  phone:       '#e15759',
+  simple_note: '#b07aa1',
+  file_system: '#76b7b2',
+  todoist:     '#edc948',
+  splitwise:   '#ff9da7',
+};
+const DEFAULT_COLOR = '#aaaaaa';
+
+function getApp(funcId) { return funcId.split('.')[0]; }
+function getColor(funcId) { return APP_COLORS[getApp(funcId)] || DEFAULT_COLOR; }
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function main() {
+  const raw = await d3.json(PATH);
+  const meta = raw.metadata;
+  const nodesRaw = raw.nodes;
+  const transRaw = raw.transitions;
+  const taskSeqs = raw.task_sequences || {};
+
+  document.getElementById('s-p').textContent = meta.perfect_tasks;
+  document.getElementById('s-t').textContent = meta.total_tasks;
+  document.getElementById('s-r').textContent = (meta.success_rate * 100).toFixed(0) + '%';
+
+  // Legend
+  const legendEl = document.getElementById('legend-items');
+  Object.entries(APP_COLORS).forEach(([app, color]) => {
+    const div = document.createElement('div');
+    div.className = 'leg';
+    div.innerHTML = `<div class="leg-c" style="background:${color}"></div>${app}`;
+    legendEl.appendChild(div);
+  });
+
+  // node → tasks lookup
+  const nodeToTasks = {};
+  for (const [taskId, steps] of Object.entries(taskSeqs)) {
+    const seen = new Set();  // 이 task에서 이미 등록한 func_id 추적
+    for (const step of steps) {
+      if (!nodeToTasks[step.func_id]) nodeToTasks[step.func_id] = [];
+      if (!seen.has(step.func_id)) {
+        nodeToTasks[step.func_id].push({ taskId, steps });
+        seen.add(step.func_id);
+      }
+    }
+  }
+
+  // Edges
+  const allEdges = [];
+  for (const [src, targets] of Object.entries(transRaw))
+    for (const [tgt, count] of Object.entries(targets))
+      allEdges.push({ source: src, target: tgt, count });
+
+  const maxFreq = Math.max(...Object.values(nodesRaw).map(n => n.frequency));
+  const rScale = d3.scaleSqrt().domain([0, maxFreq]).range([8, 34]);
+  const maxCount = Math.max(...allEdges.map(e => e.count));
+  const wScale = d3.scaleLinear().domain([1, maxCount]).range([1.2, 8]);
+
+  const allNodes = Object.entries(nodesRaw).map(([id, d]) => ({
+    id,
+    freq: d.frequency,
+    r: rScale(d.frequency),
+    color: getColor(id),
+    app: getApp(id),
+    thinking_examples: d.thinking_examples || [],
+    api_examples: d.api_examples || [],
+  }));
+
+  // Arrow markers per app
+  const svg = d3.select('#svg');
+  const W = window.innerWidth, H = window.innerHeight - 50;
+  const g = svg.append('g');
+
+  const defs = svg.append('defs');
+  Object.entries(APP_COLORS).forEach(([app, c]) => {
+    defs.append('marker').attr('id', 'arr-' + app)
+      .attr('viewBox','0 -4 8 8').attr('refX',2).attr('refY',0)
+      .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+      .append('path').attr('d','M0,-4L8,0L0,4').attr('fill',c).attr('opacity',0.8);
+  });
+  defs.append('marker').attr('id','arr-default')
+    .attr('viewBox','0 -4 8 8').attr('refX',2).attr('refY',0)
+    .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+    .append('path').attr('d','M0,-4L8,0L0,4').attr('fill',DEFAULT_COLOR).attr('opacity',0.8);
+
+  const zoom = d3.zoom().scaleExtent([0.05, 6])
+    .on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  let sim, linkSel, lblSel, nodeSel;
+  let minCount = 1, showLabels = true;
+  let currentLinkDist = 140, currentCharge = -400;
+
+  function build() {
+    const edges = allEdges.filter(e => e.count >= minCount);
+    const usedIds = new Set();
+    edges.forEach(e => { usedIds.add(e.source); usedIds.add(e.target); });
+    allNodes.forEach(n => { if (n.freq > 0) usedIds.add(n.id); });
+
+    const nodes = allNodes.filter(n => usedIds.has(n.id)).map(n => ({ ...n }));
+    const nmap = new Map(nodes.map(n => [n.id, n]));
+    const links = edges
+      .filter(e => nmap.has(e.source) && nmap.has(e.target))
+      .map(e => ({ ...e, source: nmap.get(e.source), target: nmap.get(e.target) }));
+
+    document.getElementById('s-n').textContent = nodes.length;
+    document.getElementById('s-e').textContent = links.length;
+
+    g.selectAll('*').remove();
+    if (sim) sim.stop();
+
+    // Links
+    linkSel = g.append('g').selectAll('path').data(links).join('path')
+      .attr('class', 'link')
+      .attr('stroke', d => getColor(d.target.id))
+      .attr('stroke-width', d => wScale(d.count))
+      .attr('stroke-opacity', 0.55)
+      .attr('marker-end', d => {
+        const app = getApp(d.target.id);
+        return `url(#arr-${APP_COLORS[app] ? app : 'default'})`;
+      });
+
+    lblSel = g.append('g').selectAll('text').data(links).join('text')
+      .attr('class', 'link-label').attr('text-anchor', 'middle')
+      .text(d => d.count)
+      .style('display', showLabels ? null : 'none');
+
+    // Nodes
+    nodeSel = g.append('g').selectAll('g').data(nodes).join('g')
+      .attr('class', 'node')
+      .call(d3.drag()
+        .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+        .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+    nodeSel.append('circle')
+      .attr('r', d => d.r)
+      .attr('fill', d => d.color)
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', d => d3.color(d.color).darker(0.9));
+
+    // func name label below circle
+    nodeSel.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', d => d.r + 12)
+      .attr('font-size', 10)
+      .attr('fill', '#c0c0d8')
+      .text(d => d.id);
+
+    // Tooltip
+    const tip = document.getElementById('tip');
+    nodeSel
+      .on('mouseover', (e, d) => {
+        tip.style.display = 'block';
+        tip.innerHTML = `<div class="tt-title">${d.id}</div>
+          <div class="tt-row">App: <b>${d.app}</b></div>
+          <div class="tt-row">Frequency: <b>${d.freq}</b></div>
+          <div class="tt-row">Tasks: <b>${(nodeToTasks[d.id] || []).length}</b></div>`;
+      })
+      .on('mousemove', e => { tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY-18)+'px'; })
+      .on('mouseout',  () => { tip.style.display='none'; });
+
+    // Click
+    nodeSel.on('click', (e, d) => {
+      e.stopPropagation();
+
+      const outNbrs = new Set([d.id]);
+      links.forEach(l => { if (l.source.id === d.id) outNbrs.add(l.target.id); });
+      nodeSel.classed('selected', n => n.id === d.id)
+             .classed('dimmed',   n => !outNbrs.has(n.id));
+      linkSel.classed('dimmed',  l => l.source.id !== d.id)
+             .classed('hilite',  l => l.source.id === d.id);
+
+      const c = getColor(d.id);
+      const panel = document.getElementById('info');
+      panel.style.display = 'block';
+
+      // Function chip
+      document.getElementById('i-name').innerHTML =
+        `<span class="fn-chip" style="background:${c}22;border:1px solid ${c};color:${c}">${d.id}</span>`;
+      document.getElementById('i-freq').textContent = d.freq;
+
+      // Outgoing
+      const outs = links.filter(l => l.source.id === d.id).sort((a,b) => b.count - a.count);
+      document.getElementById('i-trans').innerHTML = outs.length
+        ? outs.map(l => {
+            const tc = getColor(l.target.id);
+            return `<div class="trow">
+              <span class="tname" style="color:${tc}">${l.target.id}</span>
+              <span class="tcnt">${l.count}×</span>
+            </div>`;
+          }).join('')
+        : '<div style="color:#505068;font-size:11px;margin-top:4px">No outgoing transitions</div>';
+
+      // Thinking examples
+      const thinkEl = document.getElementById('i-thinking');
+      if (d.thinking_examples && d.thinking_examples.length > 0) {
+        thinkEl.innerHTML = d.thinking_examples.map((t, i) => `
+          <div class="thinking-block">
+            <div class="thinking-header" onclick="
+              const b=this.nextElementSibling;
+              b.classList.toggle('open');
+              this.querySelector('.thinking-toggle').textContent=b.classList.contains('open')?'▴':'▾';
+            ">
+              Example ${i + 1} <span class="thinking-toggle">▾</span>
+            </div>
+            <div class="thinking-body">${escapeHtml(t)}</div>
+          </div>`).join('');
+      } else {
+        thinkEl.innerHTML = '<div style="color:#505068;font-size:11px;margin-top:4px">No examples</div>';
+      }
+
+      // Tasks
+      const tasksEl = document.getElementById('i-tasks');
+      const taskEntries = nodeToTasks[d.id] || [];
+      if (taskEntries.length > 0) {
+        tasksEl.innerHTML = taskEntries.slice(0, 20).map(({ taskId, steps }) => {
+          const pathHtml = steps.map(s =>
+            s.func_id === d.id
+              ? `<span class="highlight">${escapeHtml(s.func_id)}</span>`
+              : escapeHtml(s.func_id)
+          ).join(' → ');
+          return `<div class="task-row">
+            <div class="task-id">${taskId}</div>
+            <div class="task-path">${pathHtml}</div>
+          </div>`;
+        }).join('') + (taskEntries.length > 20
+          ? `<div style="color:#505068;font-size:10px;margin-top:4px">...and ${taskEntries.length-20} more</div>`
+          : '');
+      } else {
+        tasksEl.innerHTML = '<div style="color:#505068;font-size:11px;margin-top:4px">No tasks</div>';
+      }
+    });
+
+    // Simulation
+    sim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(() => currentLinkDist).strength(0.3))
+      .force('charge', d3.forceManyBody().strength(currentCharge))
+      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('collision', d3.forceCollide().radius(d => d.r + 14))
+      .on('tick', tick);
+  }
+
+  function tick() {
+    linkSel.attr('d', d => {
+      const sx = d.source.x, sy = d.source.y, tx = d.target.x, ty = d.target.y;
+      if (d.source === d.target) {
+        const r = d.source.r;
+        return `M${sx},${sy-r} C${sx+45},${sy-65} ${sx+65},${sy} ${sx+r},${sy}`;
+      }
+      const dx = tx - sx, dy = ty - sy, dist = Math.sqrt(dx*dx+dy*dy) || 1;
+      const sp = { x: sx + dx/dist*d.source.r, y: sy + dy/dist*d.source.r };
+      const ep = { x: tx - dx/dist*d.target.r, y: ty - dy/dist*d.target.r };
+      const mx = (sp.x+ep.x)/2 - (ep.y-sp.y)*0.1;
+      const my = (sp.y+ep.y)/2 + (ep.x-sp.x)*0.1;
+      return `M${sp.x},${sp.y} Q${mx},${my} ${ep.x},${ep.y}`;
+    });
+    lblSel.attr('x', d => (d.source.x+d.target.x)/2).attr('y', d => (d.source.y+d.target.y)/2 - 4);
+    nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
+  }
+
+  svg.on('click', () => {
+    nodeSel && nodeSel.classed('selected dimmed', false);
+    linkSel && linkSel.classed('dimmed hilite', false);
+    document.getElementById('info').style.display = 'none';
+  });
+  document.getElementById('info-close').onclick = () => svg.dispatch('click');
+
+  document.getElementById('r-min').oninput = function() {
+    minCount = +this.value; document.getElementById('v-min').textContent = minCount; build();
+  };
+  document.getElementById('r-dist').oninput = function() {
+    currentLinkDist = +this.value; document.getElementById('v-dist').textContent = currentLinkDist;
+    if (sim) { sim.force('link').distance(() => currentLinkDist); sim.alpha(0.4).restart(); }
+  };
+  document.getElementById('r-chg').oninput = function() {
+    currentCharge = +this.value; document.getElementById('v-chg').textContent = currentCharge;
+    if (sim) { sim.force('charge').strength(currentCharge); sim.alpha(0.4).restart(); }
+  };
+  document.getElementById('ck-labels').onchange = function() {
+    showLabels = this.checked;
+    lblSel && lblSel.style('display', showLabels ? null : 'none');
+  };
+
+  build();
+}
+
+main().catch(console.error);
+</script>
+</body>
+</html>
