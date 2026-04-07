@@ -365,7 +365,7 @@ async function main() {
       const tasksEl = document.getElementById('i-tasks');
       const taskEntries = nodeToTasks[d.id] || [];
       if (taskEntries.length > 0) {
-        tasksEl.innerHTML = taskEntries.slice(0, 20).map(({ taskId, steps }) => {
+        tasksEl.innerHTML = taskEntries.map(({ taskId, steps }) => {
           const pathHtml = steps.map(s =>
             s.func_id === d.id
               ? `<span class="highlight">${escapeHtml(s.func_id)}</span>`
@@ -375,9 +375,7 @@ async function main() {
             <div class="task-id">${taskId}</div>
             <div class="task-path">${pathHtml}</div>
           </div>`;
-        }).join('') + (taskEntries.length > 20
-          ? `<div style="color:#505068;font-size:10px;margin-top:4px">...and ${taskEntries.length-20} more</div>`
-          : '');
+        }).join('');
       } else {
         tasksEl.innerHTML = '<div style="color:#505068;font-size:11px;margin-top:4px">No tasks</div>';
       }
