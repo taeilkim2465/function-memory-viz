@@ -110,7 +110,7 @@ input[type=checkbox] { accent-color: #4e79a7; cursor: pointer; }
   <div class="ctrl-row"><span>Repulsion</span><span class="v" id="v-chg">-700</span></div>
   <input type="range" id="r-chg" min="-1500" max="-80" value="-700">
   <hr class="divider">
-  <label class="check-label"><input type="checkbox" id="ck-labels" checked> Show edge counts</label>
+  <label class="check-label"><input type="checkbox" id="ck-labels"> Show edge counts</label>
 </div>
 
 <div id="legend">
@@ -237,7 +237,7 @@ async function main() {
   svg.call(zoom);
 
   let sim, linkSel, lblSel, nodeSel;
-  let minCount = 1, showLabels = true;
+  let minCount = 1, showLabels = false;
   let currentLinkDist = 220, currentCharge = -700;
 
   function build() {
@@ -319,6 +319,8 @@ async function main() {
              .classed('dimmed',   n => !outNbrs.has(n.id));
       linkSel.classed('dimmed',  l => l.source.id !== d.id)
              .classed('hilite',  l => l.source.id === d.id);
+      // 나가는 엣지 label만 표시
+      lblSel.style('display', l => l.source.id === d.id ? null : 'none');
 
       const c = getColor(d.id);
       const panel = document.getElementById('info');
@@ -421,6 +423,7 @@ async function main() {
   svg.on('click', () => {
     nodeSel && nodeSel.classed('selected dimmed', false);
     linkSel && linkSel.classed('dimmed hilite', false);
+    lblSel && lblSel.style('display', showLabels ? null : 'none');
     document.getElementById('info').style.display = 'none';
   });
   document.getElementById('info-close').onclick = () => svg.dispatch('click');
