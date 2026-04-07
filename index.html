@@ -392,7 +392,20 @@ async function main() {
       .on('tick', tick);
   }
 
+  // 양방향 엣지 쌍 집합 (source.id < target.id 기준)
+  function buildBiSet(links) {
+    const edgeSet = new Set(links.map(l => `${l.source.id}||${l.target.id}`));
+    const biSet = new Set();
+    links.forEach(l => {
+      if (edgeSet.has(`${l.target.id}||${l.source.id}`)) {
+        biSet.add(`${l.source.id}||${l.target.id}`);
+      }
+    });
+    return biSet;
+  }
+
   function tick() {
+    const biSet = buildBiSet(linkSel.data());
     linkSel.attr('d', d => {
       const sx = d.source.x, sy = d.source.y, tx = d.target.x, ty = d.target.y;
       if (d.source === d.target) {
@@ -402,8 +415,11 @@ async function main() {
       const dx = tx - sx, dy = ty - sy, dist = Math.sqrt(dx*dx+dy*dy) || 1;
       const sp = { x: sx + dx/dist*d.source.r, y: sy + dy/dist*d.source.r };
       const ep = { x: tx - dx/dist*d.target.r, y: ty - dy/dist*d.target.r };
-      const mx = (sp.x+ep.x)/2 - (ep.y-sp.y)*0.1;
-      const my = (sp.y+ep.y)/2 + (ep.x-sp.x)*0.1;
+      // 양방향이면 곡률을 더 크게
+      const isBi = biSet.has(`${d.source.id}||${d.target.id}`) || biSet.has(`${d.target.id}||${d.source.id}`);
+      const curvature = isBi ? 0.35 : 0.1;
+      const mx = (sp.x+ep.x)/2 - (ep.y-sp.y)*curvature;
+      const my = (sp.y+ep.y)/2 + (ep.x-sp.x)*curvature;
       return `M${sp.x},${sp.y} Q${mx},${my} ${ep.x},${ep.y}`;
     });
     lblSel.attr('x', d => {
