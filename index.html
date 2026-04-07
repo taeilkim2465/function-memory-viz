@@ -105,10 +105,10 @@ input[type=checkbox] { accent-color: #4e79a7; cursor: pointer; }
   <h3>Controls</h3>
   <div class="ctrl-row"><span>Min Edge Count</span><span class="v" id="v-min">1</span></div>
   <input type="range" id="r-min" min="1" max="20" value="1">
-  <div class="ctrl-row"><span>Link Distance</span><span class="v" id="v-dist">140</span></div>
-  <input type="range" id="r-dist" min="50" max="400" value="140">
-  <div class="ctrl-row"><span>Repulsion</span><span class="v" id="v-chg">-400</span></div>
-  <input type="range" id="r-chg" min="-1200" max="-80" value="-400">
+  <div class="ctrl-row"><span>Link Distance</span><span class="v" id="v-dist">220</span></div>
+  <input type="range" id="r-dist" min="50" max="500" value="220">
+  <div class="ctrl-row"><span>Repulsion</span><span class="v" id="v-chg">-700</span></div>
+  <input type="range" id="r-chg" min="-1500" max="-80" value="-700">
   <hr class="divider">
   <label class="check-label"><input type="checkbox" id="ck-labels" checked> Show edge counts</label>
 </div>
@@ -238,7 +238,7 @@ async function main() {
 
   let sim, linkSel, lblSel, nodeSel;
   let minCount = 1, showLabels = true;
-  let currentLinkDist = 140, currentCharge = -400;
+  let currentLinkDist = 220, currentCharge = -700;
 
   function build() {
     const edges = allEdges.filter(e => e.count >= minCount);
@@ -386,7 +386,7 @@ async function main() {
       .force('link', d3.forceLink(links).id(d => d.id).distance(() => currentLinkDist).strength(0.3))
       .force('charge', d3.forceManyBody().strength(currentCharge))
       .force('center', d3.forceCenter(W / 2, H / 2))
-      .force('collision', d3.forceCollide().radius(d => d.r + 14))
+      .force('collision', d3.forceCollide().radius(d => d.r + 28))
       .on('tick', tick);
   }
 
@@ -404,7 +404,17 @@ async function main() {
       const my = (sp.y+ep.y)/2 + (ep.x-sp.x)*0.1;
       return `M${sp.x},${sp.y} Q${mx},${my} ${ep.x},${ep.y}`;
     });
-    lblSel.attr('x', d => (d.source.x+d.target.x)/2).attr('y', d => (d.source.y+d.target.y)/2 - 4);
+    lblSel.attr('x', d => {
+        const mx = (d.source.x + d.target.x) / 2;
+        const dy = d.target.y - d.source.y;
+        const len = Math.sqrt((d.target.x-d.source.x)**2 + dy**2) || 1;
+        return mx - (dy / len) * 10;
+      }).attr('y', d => {
+        const my = (d.source.y + d.target.y) / 2;
+        const dx = d.target.x - d.source.x;
+        const len = Math.sqrt(dx**2 + (d.target.y-d.source.y)**2) || 1;
+        return my + (dx / len) * 10;
+      });
     nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
   }
 
